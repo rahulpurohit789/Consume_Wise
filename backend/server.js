@@ -271,6 +271,7 @@ Rules:
 5. Score should reflect overall healthiness (10 = very healthy, 1 = unhealthy)
 6. Return only the JSON, no other text [/INST]</s>`;
 
+
   try {
     console.log('\nSending analysis request to LLM...');
     const response = await axios.post(API_URL, {
