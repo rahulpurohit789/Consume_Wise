@@ -10,7 +10,11 @@ app.use(cors());
 app.use(express.json());
 
 // API Configuration
-const HUGGING_FACE_TOKEN = process.env.HUGGING_FACE_TOKEN || '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';
+const HUGGING_FACE_TOKEN = process.env.HUGGING_FACE_TOKEN;
+if (!HUGGING_FACE_TOKEN) {
+  console.error('HUGGING_FACE_TOKEN environment variable is not set');
+  process.exit(1);
+}
 const API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
 
 // Training examples for product recommendations
