@@ -8,6 +8,55 @@ class NutritionService {
         this.API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
     }
 
+    async analyzeProduct(inputMethod, barcode, productName) {
+        try {
+            let productInfo;
+            
+            if (inputMethod === 'barcode') {
+                productInfo = await this.getProductFromOpenFoodFacts(barcode);
+                if (!productInfo) {
+                    throw new Error('Product not found in database');
+                }
+            } else {
+                // For direct product name entry, create a more detailed product info object
+                productInfo = {
+                    name: productName,
+                    brand: this.extractBrandFromName(productName),
+                    nutrition: {
+                        serving_size: '100g',
+                        calories: 'N/A',
+                        protein: 'N/A',
+                        fat: 'N/A',
+                        sugar: 'N/A',
+                        sodium: 'N/A'
+                    },
+                    categories: this.getProductCategory(productName),
+                    ingredients: this.getDefaultIngredients(productName),
+                    hasNutritionData: false
+                };
+            }
+
+            // Analyze the product using LLM
+            const analysis = await this.analyzeProductWithLLM(productInfo);
+            return analysis;
+        } catch (error) {
+            console.error('Error analyzing product:', error);
+            // Create a fallback response with basic analysis
+            return this.createFallbackResponse({
+                name: productName || 'Unknown Product',
+                brand: this.extractBrandFromName(productName) || 'Unknown Brand',
+                nutrition: {
+                    serving_size: '100g',
+                    calories: 'N/A',
+                    protein: 'N/A',
+                    fat: 'N/A',
+                    sugar: 'N/A',
+                    sodium: 'N/A'
+                }
+            });
+        }
+    }
+
     async getProductFromOpenFoodFacts(barcode) {
         try {
             if (!barcode.startsWith('890')) {
@@ -36,14 +85,25 @@ class NutritionService {
         // Format nutrition values
         const nutrition = this.formatNutritionValues(product);
 
-        return {
+        // Create the product info object
+        const productInfo = {
             name: product.product_name || 'Unknown Product',
             brand: product.brands || 'Unknown Brand',
             nutrition,
             ingredients: product.ingredients_text || '',
             categories: product.categories || '',
-            hasNutritionData: this.checkHasNutritionData(nutrition)
+            hasNutritionData: false // Will be set after checking
         };
+
+        // Check if we have enough nutrition data
+        productInfo.hasNutritionData = this.checkHasNutritionData(nutrition);
+
+        // If we don't have enough nutrition data, mark it for LLM generation
+        if (!productInfo.hasNutritionData) {
+            console.log('Insufficient nutrition data from Open Food Facts, will use LLM to generate');
+        }
+
+        return productInfo;
     }
 
     getServingSize(product) {
@@ -76,9 +136,14 @@ class NutritionService {
     }
 
     checkHasNutritionData(nutrition) {
-        return Object.values(nutrition)
-            .filter(value => value !== 'N/A' && value !== '100g')
-            .length > 1;
+        // Check if any of the important nutritional values are 'N/A'
+        const importantFields = ['calories', 'protein', 'fat', 'sugar', 'sodium'];
+        const hasEnoughData = importantFields.every(field => 
+            nutrition[field] !== 'N/A' && 
+            nutrition[field] !== undefined && 
+            nutrition[field] !== null
+        );
+        return hasEnoughData;
     }
 
     async generateNutritionLabel(productInfo) {
@@ -89,10 +154,14 @@ class NutritionService {
     async analyzeProductWithLLM(productInfo) {
         // Generate nutrition label if needed
         if (!productInfo.hasNutritionData) {
-            console.log('No nutrition data available, generating with LLM...');
+            console.log('Generating nutrition data using LLM...');
             const generatedNutrition = await this.generateNutritionLabel(productInfo);
             if (generatedNutrition) {
+                console.log('Successfully generated nutrition data:', generatedNutrition);
                 productInfo.nutrition = generatedNutrition;
+                productInfo.hasNutritionData = true;
+            } else {
+                console.log('Failed to generate nutrition data, using default values');
             }
         }
 
@@ -107,10 +176,12 @@ class NutritionService {
         const analysisPrompt = this.createAnalysisPrompt(productInfo, concerns, benefits, examples);
         const analysis = await this.callLLMApi(analysisPrompt, productInfo);
         
+        // Ensure nutrition_label is included in the response
         return {
             name: productInfo.name,
             brand: productInfo.brand,
-            ...analysis
+            ...analysis,
+            nutrition_label: productInfo.nutrition
         };
     }
 
@@ -133,73 +204,100 @@ class NutritionService {
 
 Product Name: ${productInfo.name}
 Brand: ${productInfo.brand}
-Category: ${productInfo.categories}
-Ingredients: ${productInfo.ingredients}
+Category: ${productInfo.categories || this.getProductCategory(productInfo.name)}
+Ingredients: ${productInfo.ingredients || this.getDefaultIngredients(productInfo.name)}
 
 Return ONLY a JSON object with realistic nutrition values in this format:
 {
-  "serving_size": "realistic serving size",
-  "calories": "realistic calories",
-  "protein": "realistic protein in g",
-  "fat": "realistic fat in g",
-  "sugar": "realistic sugar in g",
-  "sodium": "realistic sodium in mg"
+    "serving_size": "realistic serving size",
+    "calories": "number",
+    "protein": "number in g",
+    "fat": "number in g",
+    "sugar": "number in g",
+    "sodium": "number in mg"
 }
 
-Rules:
-1. Use realistic values based on similar Indian products
-2. Serving size should be appropriate for the product type
-3. All values should be reasonable and proportional
-4. Return only the JSON, no other text [/INST]</s>`;
+Guidelines for values:
+1. For ${productInfo.name}, use typical values found in similar Indian products
+2. Serving size should be appropriate (e.g., "1 slice" for pizza, "100g" for general items)
+3. Calories should be realistic (e.g., 250-350 for pizza slice)
+4. Protein typically ranges from 5-20g per serving
+5. Fat typically ranges from 5-25g per serving
+6. Sugar typically ranges from 2-15g per serving
+7. Sodium typically ranges from 400-800mg per serving
+
+Return only the JSON object, no other text. Make sure all values are numbers (except serving_size).
+[/INST]</s>`;
     }
 
     createAnalysisPrompt(productInfo, concerns, benefits, examples) {
-        return `<s>[INST] Analyze this Indian food product and provide health recommendations based on these similar products:
+        return `<s>[INST] Analyze this Indian food product and provide a health recommendation:
 
-Example products and their health impacts:
-${examples.map(ex => `- ${ex.name} (${ex.brand}): ${ex.reason}`).join('\n')}
-
-Product to analyze:
-Name: ${productInfo.name}
+Product: ${productInfo.name}
 Brand: ${productInfo.brand}
-Nutritional Info per ${productInfo.nutrition.serving_size}:
+Nutrition per serving:
+- Serving size: ${productInfo.nutrition.serving_size}
 - Calories: ${productInfo.nutrition.calories}
 - Protein: ${productInfo.nutrition.protein}g
-- Sugar: ${productInfo.nutrition.sugar}g
 - Fat: ${productInfo.nutrition.fat}g
+- Sugar: ${productInfo.nutrition.sugar}g
 - Sodium: ${productInfo.nutrition.sodium}mg
 
-Benefits found: ${benefits.join(', ')}
-Concerns found: ${concerns.join(', ')}
+Health Concerns:
+${concerns.map(c => `- ${c}`).join('\n')}
+
+Health Benefits:
+${benefits.map(b => `- ${b}`).join('\n')}
+
+Similar Product Examples:
+${examples.map(ex => `
+Product: ${ex.name}
+Score: ${ex.score}/10
+Recommendation: ${ex.should_consume}
+Reason: ${ex.reason}
+`).join('\n')}
 
 Return ONLY a JSON object in this exact format:
 {
-  "should_consume": "Yes or No",
-  "reason": "2-line simple explanation focusing on health impact",
-  "score": "number between 1-10 based on nutritional value",
-  "nutrition_label": {
-    "serving_size": "${productInfo.nutrition.serving_size}",
-    "calories": "${productInfo.nutrition.calories}",
-    "sugar": "${productInfo.nutrition.sugar}",
-    "fat": "${productInfo.nutrition.fat}",
-    "protein": "${productInfo.nutrition.protein}",
-    "sodium": "${productInfo.nutrition.sodium}"
-  }
+    "should_consume": "Yes/No",
+    "score": "number between 1-10",
+    "reason": "detailed explanation with health impacts"
 }
 
-Rules:
-1. Compare with similar example products
-2. Give clear, simple 2-line reason that anyone can understand
-3. Focus on health impact for Indian consumers
-4. Keep nutrition label values exactly as provided
-5. Score should reflect overall healthiness (10 = very healthy, 1 = unhealthy)
-6. Consider both benefits and concerns in scoring
-7. Return only the JSON, no other text [/INST]</s>`;
+Rules for analysis:
+1. If score is 6 or higher, should_consume must be "Yes"
+2. If score is 5 or lower, should_consume must be "No"
+3. Reason must match the should_consume value (positive reasons for Yes, concerns for No)
+4. For scores 1-4: Explain health risks and why to avoid
+5. For score 5: Explain moderate concerns and suggest healthier alternatives
+6. For scores 6-10: Explain health benefits and positive aspects
+
+Example format for "No" recommendation:
+{
+    "should_consume": "No",
+    "score": "3",
+    "reason": "High in saturated fats (15g) and sodium (800mg). Contains artificial preservatives and excessive calories (450kcal per serving). Regular consumption may increase risk of heart disease and high blood pressure."
+}
+
+Example format for "Yes" recommendation:
+{
+    "should_consume": "Yes",
+    "score": "8",
+    "reason": "Good source of protein (12g) and fiber (6g). Low in saturated fats and sodium. Contains essential nutrients and no artificial preservatives. Supports healthy digestion and sustained energy levels."
+}
+[/INST]</s>`;
     }
 
     async callLLMApi(prompt, productInfo) {
         try {
             console.log('\nSending request to LLM...');
+            console.log('Prompt:', prompt);
+            
+            if (!this.HUGGING_FACE_TOKEN) {
+                console.error('HUGGING_FACE_TOKEN is not set');
+                return this.createFallbackResponse(productInfo);
+            }
+
             const response = await axios.post(this.API_URL, {
                 inputs: prompt,
                 parameters: {
@@ -215,104 +313,150 @@ Rules:
                 }
             });
 
+            console.log('LLM Response Status:', response.status);
+            console.log('LLM Response Data:', JSON.stringify(response.data, null, 2));
+
             if (response.status === 200 && response.data?.[0]?.generated_text) {
                 const result = this.parseJsonFromLLMResponse(response.data[0].generated_text);
-                if (result) return result;
+                if (result) {
+                    console.log('Successfully parsed LLM response:', result);
+                    return result;
+                }
 
                 console.log('Using fallback response due to parsing error');
                 return this.createFallbackResponse(productInfo);
             }
-            throw new Error('Invalid response from AI model');
+            
+            console.error('Invalid response from AI model:', response.data);
+            return this.createFallbackResponse(productInfo);
         } catch (error) {
-            console.error('Error calling LLM API:', error);
+            console.error('Error calling LLM API:', error.message);
+            if (error.response) {
+                console.error('Error response data:', error.response.data);
+                console.error('Error response status:', error.response.status);
+            }
             return this.createFallbackResponse(productInfo);
         }
     }
 
-    parseJsonFromLLMResponse(text) {
+    async parseJsonFromLLMResponse(text) {
         try {
-            console.log('Raw LLM response:', text);
-            
-            // First, try to parse the raw text in case it's already valid JSON
+            // First attempt: Try parsing the raw text
             try {
-                const directParse = JSON.parse(text);
-                if (this.validateParsedResponse(directParse)) {
-                    return directParse;
-                }
+                return JSON.parse(text);
             } catch (e) {
-                console.log('Direct parsing failed, trying cleanup...');
-            }
-            
-            // If direct parsing fails, try to clean up the text
-            let jsonStr = text;
-            
-            const startIdx = text.indexOf('{');
-            const endIdx = text.lastIndexOf('}') + 1;
-            
-            if (startIdx !== -1 && endIdx !== 0) {
-                jsonStr = text.slice(startIdx, endIdx);
+                console.log('Initial JSON parse failed, attempting cleanup...');
             }
 
-            // Remove escaped quotes and clean up the JSON string
-            jsonStr = jsonStr
-                .replace(/\\"/g, '"')  // Remove escaped quotes
-                .replace(/\n/g, ' ')
-                .replace(/\r/g, '')
-                .replace(/\t/g, ' ')
-                .replace(/\s+/g, ' ')
-                .replace(/,\s*}/g, '}')
-                .replace(/,\s*]/g, ']')
-                .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?\s*:/g, '"$2":')
-                .replace(/:\s*'([^']*)'/g, ':"$1"')
+            // Second attempt: Clean up the text and try again
+            let cleanText = text
+                .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+                .replace(/```json\s*|\s*```/g, '') // Remove markdown code blocks
+                .replace(/^[^{]*?({.*})[^}]*$/s, '$1') // Extract just the JSON object
                 .trim();
 
-            console.log('Cleaned JSON string:', jsonStr);
+            // Ensure the response has the required fields
+            const parsed = JSON.parse(cleanText);
             
-            const parsed = JSON.parse(jsonStr);
+            // Validate and fix the response
+            const validatedResponse = this.validateAndFixResponse(parsed);
             
-            if (!this.validateParsedResponse(parsed)) {
-                throw new Error('Invalid response structure');
-            }
-
-            return parsed;
+            return validatedResponse;
         } catch (error) {
             console.error('Error parsing LLM response:', error);
+            console.error('Raw text:', text);
             return null;
         }
     }
 
-    validateParsedResponse(parsed) {
-        // Update validation to not require name and brand in LLM response
-        const requiredFields = ['should_consume', 'reason', 'score', 'nutrition_label'];
-        const requiredNutritionFields = ['serving_size', 'calories', 'sugar', 'fat', 'protein', 'sodium'];
-        
-        if (!requiredFields.every(field => field in parsed)) {
-            console.error('Missing required fields in response');
-            return false;
+    validateAndFixResponse(response) {
+        // Ensure score is a number between 1 and 10
+        let score = parseInt(response.score);
+        if (isNaN(score) || score < 1) score = 1;
+        if (score > 10) score = 10;
+
+        // Ensure should_consume matches the score
+        const shouldConsume = score >= 6 ? "Yes" : "No";
+
+        // Ensure reason is not empty and matches should_consume
+        let reason = response.reason || '';
+        if (!reason || reason.includes('undefined') || reason.includes('null')) {
+            reason = shouldConsume === "Yes" 
+                ? "This product has good nutritional value and can be part of a balanced diet."
+                : "This product has nutritional concerns and should be consumed in moderation.";
         }
-        
-        if (!requiredNutritionFields.every(field => field in parsed.nutrition_label)) {
-            console.error('Missing required nutrition fields in response');
-            return false;
-        }
-        
-        return true;
+
+        // Include nutrition_label in the response
+        return {
+            should_consume: shouldConsume,
+            score: score,
+            reason: reason,
+            nutrition_label: response.nutrition_label || {
+                serving_size: '100g',
+                calories: 'N/A',
+                protein: 'N/A',
+                fat: 'N/A',
+                sugar: 'N/A',
+                sodium: 'N/A'
+            }
+        };
     }
 
     createFallbackResponse(productInfo) {
         const { concerns, benefits } = evaluateNutritionalValues(productInfo.nutrition);
-        const score = benefits.length > concerns.length ? 7 : 3;
+        const score = Math.max(1, Math.min(10, 5 + benefits.length - concerns.length));
+        const shouldConsume = score >= 6 ? "Yes" : "No";
         
+        let reason;
+        if (shouldConsume === "Yes") {
+            reason = `This product has ${benefits.length} health benefits: ${benefits.join(', ')}. ${concerns.length > 0 ? `However, consider these concerns: ${concerns.join(', ')}.` : ''}`;
+        } else {
+            reason = `This product has ${concerns.length} health concerns: ${concerns.join(', ')}. ${benefits.length > 0 ? `However, it does have some benefits: ${benefits.join(', ')}.` : ''}`;
+        }
+
         return {
             name: productInfo.name,
             brand: productInfo.brand,
-            should_consume: benefits.length > concerns.length ? "Yes" : "No",
-            reason: concerns.length > 0 ? 
-                `This product has ${concerns.join(' and ')}. Consider healthier alternatives with ${benefits.length > 0 ? benefits.join(' and ') : 'better nutritional values'}.` :
-                `This product has ${benefits.join(' and ')}. Good choice for your health.`,
-            score: score.toString(),
+            should_consume: shouldConsume,
+            score: score,
+            reason: reason,
             nutrition_label: productInfo.nutrition
         };
+    }
+
+    extractBrandFromName(productName) {
+        const commonBrands = ['Dominos', 'Domino\'s', 'Pizza Hut', 'McDonald\'s', 'KFC', 'Burger King', 'Subway'];
+        const words = productName.split(' ');
+        
+        for (const brand of commonBrands) {
+            if (productName.toLowerCase().includes(brand.toLowerCase())) {
+                return brand;
+            }
+        }
+        
+        return words[0] || 'Unknown Brand';
+    }
+
+    getProductCategory(productName) {
+        const name = productName.toLowerCase();
+        if (name.includes('pizza')) return 'Pizza';
+        if (name.includes('burger')) return 'Burger';
+        if (name.includes('sandwich')) return 'Sandwich';
+        if (name.includes('noodles')) return 'Noodles';
+        if (name.includes('rice')) return 'Rice';
+        if (name.includes('bread')) return 'Bread';
+        return 'Other';
+    }
+
+    getDefaultIngredients(productName) {
+        const name = productName.toLowerCase();
+        if (name.includes('pizza')) return 'Wheat flour, cheese, tomato sauce, vegetables';
+        if (name.includes('burger')) return 'Bun, patty, lettuce, tomato, cheese';
+        if (name.includes('sandwich')) return 'Bread, vegetables, cheese, sauce';
+        if (name.includes('noodles')) return 'Wheat flour, vegetables, spices';
+        if (name.includes('rice')) return 'Rice, spices, vegetables';
+        if (name.includes('bread')) return 'Wheat flour, yeast, salt';
+        return 'Ingredients not specified';
     }
 }
 

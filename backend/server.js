@@ -15,6 +15,11 @@ if (!process.env.HUGGING_FACE_TOKEN) {
 app.use(cors());
 app.use(express.json());
 
+// Test endpoint for server connectivity
+app.get('/api/test', (req, res) => {
+    res.json({ status: 'ok', message: 'Server is running' });
+});
+
 // Routes
 app.use('/api/products', productRoutes);
 
