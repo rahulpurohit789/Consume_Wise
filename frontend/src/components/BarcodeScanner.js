@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Quagga from '@ericblade/quagga2';
 import './BarcodeScanner.css';
 
 const BarcodeScanner = () => {
@@ -9,6 +10,14 @@ const BarcodeScanner = () => {
     const [productInfo, setProductInfo] = useState(null);
     const [inputMethod, setInputMethod] = useState('barcode'); // 'barcode' or 'name'
     const [isServerConnected, setIsServerConnected] = useState(false);
+    const [isCameraActive, setIsCameraActive] = useState(false);
+    const videoRef = useRef(null);
+    const [quaggaInitialized, setQuaggaInitialized] = useState(false);
+    
+    // Use refs for barcode detection state to persist between renders
+    const lastResultRef = useRef(null);
+    const sameResultCountRef = useRef(0);
+    const quaggaRef = useRef(null);
 
     useEffect(() => {
         // Initial connection check
@@ -138,6 +147,195 @@ const BarcodeScanner = () => {
         setProductInfo(null);
     };
 
+    const startCamera = async () => {
+        setIsCameraActive(true);
+        setError('');
+        
+        try {
+            // First, request camera permissions explicitly
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } 
+            });
+            
+            // Stop the test stream
+            stream.getTracks().forEach(track => track.stop());
+
+            // Now get the list of available video devices
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            console.log('Available video devices:', videoDevices);
+
+            if (videoDevices.length === 0) {
+                throw new Error('No video devices found');
+            }
+
+            // Try to find DroidCam specifically
+            const droidCam = videoDevices.find(device => 
+                device.label.toLowerCase().includes('droid') || 
+                device.label.toLowerCase().includes('ip camera')
+            );
+
+            // Use DroidCam if found, otherwise use the last available camera
+            const selectedDevice = droidCam || videoDevices[videoDevices.length - 1];
+            console.log('Selected camera device:', selectedDevice.label);
+
+            // Make sure any existing instance is stopped
+            if (quaggaInitialized) {
+                try {
+                    await Quagga.stop();
+                } catch (err) {
+                    console.log('Error stopping existing Quagga instance:', err);
+                }
+            }
+
+            // Reset detection state
+            lastResultRef.current = null;
+            sameResultCountRef.current = 0;
+
+            // Wait for the DOM element to be ready
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const config = {
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector("#interactive.viewport"),
+                    constraints: {
+                        deviceId: { exact: selectedDevice.deviceId },
+                        width: { min: 640, ideal: 1280, max: 1920 },
+                        height: { min: 480, ideal: 720, max: 1080 },
+                        aspectRatio: { min: 1, max: 2 },
+                        facingMode: "environment",
+                        frameRate: { ideal: 30 }
+                    },
+                    area: {
+                        top: "0%",
+                        right: "0%",
+                        left: "0%",
+                        bottom: "0%"
+                    },
+                    singleChannel: false
+                },
+                locator: {
+                    patchSize: "medium",
+                    halfSample: true
+                },
+                numOfWorkers: 4,
+                frequency: 10,
+                decoder: {
+                    readers: ["ean_reader"],
+                    debug: {
+                        drawBoundingBox: true,
+                        showFrequency: true,
+                        drawScanline: true,
+                        showPattern: true
+                    }
+                },
+                locate: true
+            };
+
+            // Initialize Quagga with a promise wrapper
+            await new Promise((resolve, reject) => {
+                try {
+                    Quagga.init(config, function(err) {
+                        if (err) {
+                            console.error("Quagga initialization failed:", err);
+                            reject(err);
+                            return;
+                        }
+                        console.log("Quagga initialization succeeded");
+                        resolve();
+                    });
+                } catch (initError) {
+                    console.error("Error during Quagga initialization:", initError);
+                    reject(initError);
+                }
+            });
+
+            // Store Quagga instance
+            quaggaRef.current = Quagga;
+            setQuaggaInitialized(true);
+            
+            // Start the scanner
+            await Quagga.start();
+            console.log("Quagga started successfully");
+
+            // Remove any existing handlers before adding new ones
+            Quagga.offDetected();
+
+            // Add barcode detection handler
+            Quagga.onDetected((result) => {
+                if (result.codeResult) {
+                    const scannedCode = result.codeResult.code;
+                    console.log("Scanned code:", scannedCode);
+                    
+                    // Check if this is the same code as last time
+                    if (scannedCode === lastResultRef.current) {
+                        sameResultCountRef.current++;
+                        console.log("Same code count:", sameResultCountRef.current);
+                        
+                        // If we've seen the same code 2 times, we're confident it's correct
+                        if (sameResultCountRef.current >= 2) {
+                            console.log("Barcode detected and verified:", scannedCode);
+                            setBarcode(scannedCode);
+                            stopCamera();
+                        }
+                    } else {
+                        // Reset counter for new code
+                        lastResultRef.current = scannedCode;
+                        sameResultCountRef.current = 1;
+                        console.log("New code detected, count reset");
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error("Error starting camera:", error);
+            let errorMessage = "Failed to start camera. ";
+            
+            if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                errorMessage += "No camera devices found. ";
+            } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                errorMessage += "Camera permission denied. Please allow camera access. ";
+            } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                errorMessage += "Camera is in use by another application. ";
+            } else if (error.message.includes('Ut[e] is not a constructor')) {
+                errorMessage = "Barcode scanner initialization failed. Please try refreshing the page. ";
+            }
+            
+            errorMessage += "Please ensure DroidCam is running and connected. If using DroidCam, try restarting the DroidCam app and client.";
+            
+            setError(errorMessage);
+            setIsCameraActive(false);
+            setQuaggaInitialized(false);
+            quaggaRef.current = null;
+        }
+    };
+
+    const stopCamera = async () => {
+        if (quaggaRef.current && quaggaInitialized) {
+            try {
+                quaggaRef.current.offDetected();
+                await quaggaRef.current.stop();
+                console.log("Camera stopped successfully");
+            } catch (err) {
+                console.error("Error stopping camera:", err);
+            }
+            quaggaRef.current = null;
+            setQuaggaInitialized(false);
+        }
+        setIsCameraActive(false);
+    };
+
+    // Cleanup camera when component unmounts
+    useEffect(() => {
+        return () => {
+            if (quaggaRef.current && quaggaInitialized) {
+                stopCamera();
+            }
+        };
+    }, [quaggaInitialized]);
+
     return (
         <div className="scanner-container">
             <div className="app-header">
@@ -164,18 +362,44 @@ const BarcodeScanner = () => {
                 </button>
             </div>
 
+            {isCameraActive && (
+                <div className="camera-container">
+                    <div className="viewport-container">
+                        <div id="interactive" className="viewport" />
+                        <div className="laser"></div>
+                        <div className="camera-overlay">
+                            <div className="scan-region-highlight"></div>
+                            <div className="scan-region-highlight-svg"></div>
+                        </div>
+                        <button className="camera-close-btn" onClick={stopCamera}>
+                            ✕ Close Camera
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="barcode-form">
                 {inputMethod === 'barcode' ? (
                     <div className="input-group">
-                        <input
-                            type="text"
-                            value={barcode}
-                            onChange={(e) => setBarcode(e.target.value)}
-                            placeholder="Enter barcode number (e.g., 8901234567890)"
-                            required
-                            pattern="[0-9]*"
-                            maxLength="13"
-                        />
+                        <div className="barcode-input-container">
+                            <input
+                                type="text"
+                                value={barcode}
+                                onChange={(e) => setBarcode(e.target.value)}
+                                placeholder="Enter barcode number (e.g., 8901234567890)"
+                                required
+                                pattern="[0-9]*"
+                                maxLength="13"
+                            />
+                            <button 
+                                type="button" 
+                                className="camera-btn"
+                                onClick={startCamera}
+                                disabled={isCameraActive}
+                            >
+                                📷
+                            </button>
+                        </div>
                         <button type="submit" disabled={isLoading}>
                             {isLoading ? 'Analyzing...' : 'Analyze Nutrition'}
                         </button>
