@@ -1,58 +1,123 @@
 import React from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import Container from '@mui/material/Container';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
+import { Container, Box, CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import BarcodeScanner from './components/BarcodeScanner';
+import PostitNote from './components/PostitNote';
 
 const theme = createTheme({
   palette: {
-    mode: 'light',
+    mode: 'dark',
     primary: {
       main: '#1976d2',
     },
     secondary: {
       main: '#dc004e',
     },
+    background: {
+      default: '#121212',
+      paper: '#1E1E1E',
+    },
   },
 });
 
 function App() {
+  // This will cause the Component to rerender if the system preference changes
+  const [prefersDarkMode, setPrefersDarkMode] = React.useState(() => {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  // Effect for adding the listener
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => setPrefersDarkMode(mediaQuery.matches);
+    
+    // Add the callback as a listener
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    } else {
+      // Older browsers support
+      mediaQuery.addListener(handleChange);
+      return () => mediaQuery.removeListener(handleChange);
+    }
+  }, []);
+
+  // Manually toggle dark mode
+  const toggleDarkMode = () => {
+    setPrefersDarkMode(!prefersDarkMode);
+    // Apply dark mode class to body
+    if (!prefersDarkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  };
+
+  // Apply dark mode class to body element when preference changes
+  React.useEffect(() => {
+    if (prefersDarkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [prefersDarkMode]);
+
+  // Generate theme based on dark mode preference
+  const appTheme = React.useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: prefersDarkMode ? 'dark' : 'light',
+          primary: {
+            main: prefersDarkMode ? '#90caf9' : '#1976d2',
+          },
+          secondary: {
+            main: '#dc004e',
+          },
+          background: {
+            default: prefersDarkMode ? '#121212' : '#ffffff',
+            paper: prefersDarkMode ? '#1E1E1E' : '#ffffff',
+          },
+        },
+      }),
+    [prefersDarkMode],
+  );
+
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={appTheme}>
       <CssBaseline />
-      <Container maxWidth="md">
-        <Box
-          sx={{
-            marginTop: 8,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <Typography
-            component="h1"
-            variant="h2"
-            gutterBottom
+      <PostitNote />
+      <Box sx={{ 
+        minHeight: '100vh',
+        width: '100%',
+        bgcolor: 'background.default',
+        color: 'text.primary',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        <Container maxWidth="md" sx={{ 
+          flex: 1, 
+          py: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          width: '100%'
+        }}>
+          <Box
             sx={{
-              fontWeight: 'bold',
-              color: 'primary.main',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%'
             }}
           >
-            ConsumeWise
-          </Typography>
-          <Typography
-            variant="h5"
-            color="text.secondary"
-            gutterBottom
-            sx={{ mb: 4 }}
-          >
-            Scan barcodes to get detailed product information
-          </Typography>
-          <BarcodeScanner />
-        </Box>
-      </Container>
+            <BarcodeScanner isDarkMode={prefersDarkMode} toggleDarkMode={toggleDarkMode} />
+          </Box>
+        </Container>
+      </Box>
     </ThemeProvider>
   );
 }

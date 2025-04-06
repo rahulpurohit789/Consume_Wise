@@ -7,11 +7,55 @@
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="ConsumeWise - Product Information Scanner"
+      content="ConsumeWise - Your Personal Nutrition Assistant"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>ConsumeWise</title>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      html.dark,
+      body.dark-mode,
+      body.dark-mode #root {
+        background-color: #121212 !important;
+        color: #ffffff !important;
+      }
+
+      body {
+        transition: background-color 0.3s ease, color 0.3s ease;
+        text-align: center;
+      }
+
+      #root > div {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Force alignment for all direct children of the root element */
+      #root > div > * {
+        width: 100%;
+        max-width: 100%;
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
@@ -21,4 +65,4 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>
-</html> 
+</html>

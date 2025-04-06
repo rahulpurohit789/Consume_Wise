@@ -1,0 +1,109 @@
+/* Postit note styles - horizontal strip version */
+.postit-note {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  padding: 10px 0;
+  background: #fff9b1 !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  color: #2c1810 !important;
+  z-index: 10000 !important;
+  text-align: center;
+  border: none !important;
+  pointer-events: auto !important;
+  display: block !important;
+  font-size: 0.95rem;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Red pin at the top */
+.postit-note::before {
+  content: '';
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  background: #e74c3c;
+  border-radius: 50%;
+  top: 5px;
+  right: 50%;
+  transform: translateX(300px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 1;
+}
+
+.postit-note h3 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  color: #c0392b !important;
+  text-align: center;
+  font-weight: bold;
+}
+
+.postit-note ul {
+  list-style: none;
+  padding: 0;
+  margin: 5px 0;
+  text-align: center;
+}
+
+.postit-note li {
+  margin: 5px 0;
+  font-size: 0.9rem;
+  color: #2c1810 !important;
+  text-align: center;
+}
+
+.postit-note .section-title {
+  margin-top: 10px;
+  font-weight: bold;
+  color: #c0392b !important;
+  font-size: 1rem;
+}
+
+.postit-note .code {
+  font-family: 'Courier New', monospace;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: #e74c3c !important;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  font-weight: bold;
+  font-size: 0.9rem;
+  display: inline-block;
+}
+
+/* Make postit responsive */
+@media (max-width: 768px) {
+  .postit-note {
+    padding: 5px 0;
+    font-size: 0.8rem;
+  }
+  
+  .postit-note h3 {
+    font-size: 1rem;
+  }
+  
+  .postit-note .section-title {
+    font-size: 0.9rem;
+  }
+}
+
+/* Add styles for the new postit content container */
+.postit-content {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 40px;
+  margin: 0 auto;
+  max-width: 1000px;
+}
+
+.postit-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+} 
