@@ -1,44 +1,35 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
+  "name": "consumewise-frontend",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@emotion/react": "^11.11.3",
-    "@emotion/styled": "^11.11.0",
-    "@ericblade/quagga2": "^1.7.7",
-    "@mui/icons-material": "^5.15.10",
-    "@mui/material": "^5.15.10",
-    "@tensorflow/tfjs": "^4.20.0",
-    "axios": "^1.6.7",
+    "@ericblade/quagga2": "^1.8.4",
+    "axios": "^1.11.0",
+    "concurrently": "^9.2.1",
+    "lucide-react": "^0.263.1",
+    "quagga": "^0.12.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1"
+    "react-dropzone": "^14.3.8",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^6.15.0",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "cross-env": "^7.0.3"
+    "@tailwindcss/forms": "^0.5.4",
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.0.3",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.27",
+    "tailwindcss": "^3.3.3",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5"
   },
   "scripts": {
-    "start": "cross-env FAST_REFRESH=false WDS_SOCKET_PORT=0 react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
   }
 }

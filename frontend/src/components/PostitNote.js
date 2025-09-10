@@ -7,102 +7,110 @@ const PostitNote = () => {
     position: 'fixed',
     top: '20px',
     right: '20px',
-    width: '250px',
-    padding: '15px',
-    background: '#00205b', // Navy blue color
-    boxShadow: '4px 4px 10px rgba(0, 0, 0, 0.25)',
-    fontFamily: 'Arial, sans-serif',
+    width: '280px',
+    padding: '20px',
+    background: 'var(--accent-color)',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    fontFamily: 'Inter, sans-serif',
     zIndex: 1000,
     transform: 'rotate(2deg)',
     transition: 'all 0.3s ease',
-    color: '#fff',
-    borderRadius: '10px',
+    color: 'white',
+    borderRadius: '12px',
     display: isHidden ? 'none' : 'block',
     cursor: 'pointer',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
   };
 
   const arrowStyles = {
     position: 'fixed',
     top: '20px',
     right: '20px',
-    width: '30px',
-    height: '30px',
-    backgroundColor: '#00205b', // Navy blue color
+    width: '36px',
+    height: '36px',
+    backgroundColor: 'var(--accent-color)',
     borderRadius: '50%',
-    boxShadow: '2px 2px 5px rgba(0, 0, 0, 0.3)',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
     display: isHidden ? 'flex' : 'none',
     justifyContent: 'center',
     alignItems: 'center',
     cursor: 'pointer',
     zIndex: 1000,
-    transition: 'transform 0.3s ease',
-    color: '#fff',
+    transition: 'all 0.3s ease',
+    color: 'white',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
   };
 
   const pinStyles = {
     position: 'absolute',
-    top: '10px',
+    top: '12px',
     left: '50%',
     transform: 'translateX(-50%)',
-    width: '12px',
-    height: '12px',
-    backgroundColor: 'red',
+    width: '8px',
+    height: '8px',
+    backgroundColor: 'var(--error-color)',
     borderRadius: '50%',
-    boxShadow: '0 0 5px rgba(0,0,0,0.3)',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
     zIndex: 1001,
   };
 
   const titleStyles = {
-    margin: '0 0 10px 0',
-    color: '#fff', // White text
-    fontSize: '18px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.3)',
-    paddingBottom: '5px',
-    fontWeight: 'bold',
+    margin: '0 0 16px 0',
+    color: 'white',
+    fontSize: '1.25rem',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+    paddingBottom: '8px',
+    fontWeight: '600',
+    letterSpacing: '-0.5px',
   };
 
   const sectionTitleStyles = {
-    fontWeight: 'bold',
-    marginBottom: '5px',
-    fontSize: '14px',
-    color: '#fff', // White text
+    fontWeight: '600',
+    marginBottom: '8px',
+    fontSize: '0.875rem',
+    color: 'white',
+    opacity: 0.9,
   };
 
   const listStyles = {
-    margin: '0 0 15px 0',
-    paddingLeft: '20px',
-    fontSize: '13px',
-    color: '#fff', // White text
+    margin: '0 0 16px 0',
+    paddingLeft: '24px',
+    fontSize: '0.875rem',
+    color: 'white',
+    opacity: 0.9,
   };
 
   const codeStyles = {
     fontFamily: 'monospace',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: '2px 4px',
-    borderRadius: '3px',
-    color: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    color: 'white',
+    fontSize: '0.75rem',
   };
 
   const sectionStyles = {
-    marginBottom: '15px',
+    marginBottom: '16px',
   };
 
   const handleMouseEnter = (e) => {
-    e.currentTarget.style.transform = 'rotate(0deg) scale(1.03)';
-    e.currentTarget.style.boxShadow = '5px 5px 12px rgba(0, 0, 0, 0.3)';
+    e.currentTarget.style.transform = 'rotate(0deg) scale(1.02)';
+    e.currentTarget.style.boxShadow = '0 8px 12px -1px rgba(0, 0, 0, 0.2), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
   };
 
   const handleMouseLeave = (e) => {
     e.currentTarget.style.transform = 'rotate(2deg)';
-    e.currentTarget.style.boxShadow = '4px 4px 10px rgba(0, 0, 0, 0.25)';
+    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
   };
 
   const handleArrowHover = (e) => {
     e.currentTarget.style.transform = 'scale(1.1)';
+    e.currentTarget.style.boxShadow = '0 8px 12px -1px rgba(0, 0, 0, 0.2), 0 4px 6px -1px rgba(0, 0, 0, 0.1)';
   };
 
   const handleArrowLeave = (e) => {
     e.currentTarget.style.transform = 'scale(1)';
+    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
   };
 
   const toggleNote = () => {
@@ -128,15 +136,6 @@ const PostitNote = () => {
               <li><span style={codeStyles}>8901058000290</span> Maggi</li>
               <li><span style={codeStyles}>8901058850429</span> KitKat</li>
             </ul>
-          </div>
-          <div style={sectionStyles}>
-            {/* <div style={sectionTitleStyles}>Names:</div> */}
-            {/* <ul style={listStyles}>
-              <li>Maggi Noodles</li>
-              <li>Coca Cola</li>
-              <li>Oreo Cookies</li>
-              <li>Lays Chips</li>
-            </ul> */}
           </div>
         </div>
       </div>

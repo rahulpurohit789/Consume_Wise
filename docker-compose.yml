@@ -1,0 +1,89 @@
+version: "3.8"
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: consumewise-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: consumewise
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - consumewise-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: consumewise-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/consumewise?authSource=admin
+      JWT_SECRET: your_super_secret_jwt_key_here_change_in_production
+      JWT_EXPIRES_IN: 7d
+      MAX_FILE_SIZE: 5242880
+      ALLOWED_FILE_TYPES: image/jpeg,image/png,image/webp
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - mongodb
+    networks:
+      - consumewise-network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: consumewise-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+      VITE_APP_NAME: ConsumeWise
+      VITE_MAX_FILE_SIZE: 5242880
+      VITE_SUPPORTED_FORMATS: JPEG,PNG,WebP
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - consumewise-network
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: consumewise-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - consumewise-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  consumewise-network:
+    driver: bridge
+

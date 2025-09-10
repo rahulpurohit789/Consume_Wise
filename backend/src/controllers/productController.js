@@ -14,10 +14,10 @@ class ProductController {
             const analysis = await nutritionService.analyzeProduct(inputMethod, barcode, productName);
             
             if (!analysis) {
-                return res.status(500).json({ message: 'Error analyzing product' });
+                return res.status(500).json({ success: false, message: 'Error analyzing product' });
             }
 
-            res.json(analysis);
+            res.json({ success: true, data: analysis });
         } catch (error) {
             console.error('Error in scanProduct:', error);
             res.status(500).json({ message: error.message || 'Internal server error' });
